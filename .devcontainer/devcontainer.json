@@ -17,8 +17,8 @@
   "containerEnv": {
     "SPARK_HOME": "/opt/spark",
     "JAVA_HOME": "/usr/local/sdkman/candidates/java/current",
-    "PYSPARK_PYTHON": "/workspaces/data_science_at_scale/.venv/bin/python3",
-    "PYSPARK_DRIVER_PYTHON": "/workspaces/data_science_at_scale/.venv/bin/python3",
+    "PYSPARK_PYTHON": "/workspaces/dscc202-402-spring2026/.venv/bin/python3",
+    "PYSPARK_DRIVER_PYTHON": "/workspaces/dscc202-402-spring2026/.venv/bin/python3",
     "PYTHONPATH": "/opt/spark/python:/opt/spark/python/lib/py4j-0.10.9.7-src.zip",
     "SPARK_OPTS": "--driver-memory=6g --driver-cores=4 --executor-memory=4g --executor-cores=4",
     "SPARK_LOCAL_IP": "127.0.0.1",
@@ -67,7 +67,7 @@
         "ms-vscode-remote.remote-containers"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/workspaces/data_science_at_scale/.venv/bin/python3",
+        "python.defaultInterpreterPath": "/workspaces/dscc202-402-spring2026/.venv/bin/python3",
         "python.terminal.activateEnvironment": true,
         "jupyter.askForKernelRestart": false,
         "jupyter.alwaysTrustNotebooks": true,
@@ -79,7 +79,7 @@
   },
 
   "remoteUser": "vscode",
-  "workspaceFolder": "/workspaces/data_science_at_scale",
+  "workspaceFolder": "/workspaces/dscc202-402-spring2026",
 
   "mounts": [
     "source=codespace-spark-cache,target=/opt/spark-cache,type=volume"

@@ -18,7 +18,7 @@ export SPARK_LOCAL_IP=127.0.0.1
 export SPARK_DRIVER_HOST=127.0.0.1
 
 # Check if we're in the right directory
-WORKSPACE_DIR="/workspaces/data_science_at_scale"
+WORKSPACE_DIR="/workspaces/dscc202-402-spring2026"
 if [ ! -d "$WORKSPACE_DIR" ]; then
     echo "⚠️  Warning: Expected workspace directory not found. Using current directory."
     WORKSPACE_DIR=$(pwd)
