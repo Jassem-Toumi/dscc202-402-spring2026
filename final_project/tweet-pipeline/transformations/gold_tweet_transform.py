@@ -35,6 +35,11 @@
 # - pyspark.pipelines (as dp)
 # - pyspark.sql.types and pyspark.sql.functions
 # - mlflow for model loading
+import pyspark.pipelines as dp
+from pyspark.sql.functions import col, pandas_udf, when
+import pandas as pd
+import mlflow
+import mlflow.pyfunc
 
 
 # COMMAND ----------
@@ -47,7 +52,10 @@
 # COMMAND ----------
 
 # TODO: Create streaming table definition
-
+dp.create_streaming_table(
+    name="tweets_gold",
+    comment="Tweet data enriched with ML sentiment predictions"
+)
 
 # COMMAND ----------
 
@@ -60,7 +68,7 @@
 # COMMAND ----------
 
 # TODO: Configure MLflow registry
-
+mlflow.set_registry_uri("databricks-uc")
 
 # COMMAND ----------
 
@@ -74,7 +82,7 @@
 # COMMAND ----------
 
 # TODO: Define model output schema
-
+model_output_schema = "struct<label:string,score:double>"
 
 # COMMAND ----------
 
@@ -89,8 +97,41 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,Cell 11
 # TODO: Load model and create Spark UDF
+# Task 4: Module-level model cache + Pandas Iterator UDF
+# Pattern: load model inside the UDF on first call, then reuse the cached
+# instance on every subsequent call within the same executor process.
+# Iterator UDF processes data in smaller batches to reduce memory usage.
 
+from typing import Iterator
+
+UC_MODEL_NAME = "workspace.default.small_sentiment_model"
+MODEL_URI = f"models:/{UC_MODEL_NAME}/1"
+
+_model_cache = {}
+
+def _get_model():
+    """Load the model once per executor process and cache it."""
+    if "model" not in _model_cache:
+        import os, tempfile
+        # Redirect MLflow's local file writes off the read-only root filesystem
+        os.environ["HOME"] = tempfile.gettempdir()
+        os.environ["MLFLOW_TRACKING_URI"] = "databricks"
+        import mlflow
+        mlflow.set_registry_uri("databricks-uc")
+        _model_cache["model"] = mlflow.pyfunc.load_model(MODEL_URI)
+    return _model_cache["model"]
+
+@pandas_udf(model_output_schema)
+def predict_sentiment(iterator: Iterator[pd.Series]) -> Iterator[pd.DataFrame]:
+    model = _get_model()
+    for texts in iterator:
+        inputs = texts.fillna("").tolist()
+        results = model.predict(inputs)
+        labels = [r["label"] for r in results]
+        scores = [float(r["score"]) for r in results]
+        yield pd.DataFrame({"label": labels, "score": scores})
 
 # COMMAND ----------
 
@@ -115,7 +156,31 @@
 # COMMAND ----------
 
 # TODO: Define append_flow function for gold transformation
-
+@dp.append_flow(target="tweets_gold")
+def transform_gold():
+    return (
+        spark.readStream.table("tweets_silver")
+            .withColumn("prediction", predict_sentiment(col("cleaned_text")))
+            .withColumn("predicted_sentiment",
+                when(col("prediction.label") == "POSITIVE", "positive")
+                .otherwise("negative"))
+            .withColumn("predicted_score", col("prediction.score") * 100)
+            .withColumn("sentiment_id",
+                when(col("sentiment") == "4", 1).otherwise(0))
+            .withColumn("predicted_sentiment_id",
+                when(col("predicted_sentiment") == "positive", 1).otherwise(0))
+            .select(
+                col("timestamp"),
+                col("mention"),
+                col("cleaned_text"),
+                col("text"),
+                col("sentiment"),
+                col("predicted_score"),
+                col("predicted_sentiment"),
+                col("sentiment_id"),
+                col("predicted_sentiment_id")
+            )
+    )
 
 # COMMAND ----------
 

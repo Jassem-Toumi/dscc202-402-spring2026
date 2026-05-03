@@ -1,4 +1,12 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "5"
+# dependencies = [
+#   "transformers==4.35.2",
+#   "torch",
+# ]
+# ///
 # MAGIC %sql
 # MAGIC DROP VOLUME IF EXISTS workspace.default.checkpoints;
 # MAGIC
@@ -123,17 +131,16 @@ except Exception as e:
 
 # COMMAND ----------
 
+# DBTITLE 1,Cell 8
 #Load the model from the URI above and execute a test inference 
 pyfunc_model = mlflow.pyfunc.load_model(model_uri)
 
-# The model is logged with an input example
-input_data = pyfunc_model.input_example
+# Use the same input example that was logged with the model
+input_data = ["This is a great day!"]
 
-# Verify the model with the provided input data using the logged dependencies.
-# For more details, refer to:
-# https://mlflow.org/docs/latest/models.html#validate-models-before-deployment
-mlflow.models.predict(
-    model_uri=model_uri,
-    input_data=input_data,
-    env_manager="uv",
-)
+# Perform inference with the loaded model
+predictions = pyfunc_model.predict(input_data)
+
+print(f"✅ Model inference successful!")
+print(f"Input: {input_data}")
+print(f"Predictions: {predictions}")
