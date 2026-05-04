@@ -32,7 +32,7 @@
 
 import pyspark.pipelines as dp
 from pyspark.sql.types import StructType, StructField, StringType
-from pyspark.sql.functions import current_timestamp, col
+from pyspark.sql.functions import col, current_timestamp
 
 
 # COMMAND ----------
@@ -75,10 +75,10 @@ dp.create_streaming_table(
 
 # TODO: Define tweet schema as StructType
 tweet_schema = StructType([
-    StructField("date", StringType(), True),
-    StructField("user", StringType(), True),
-    StructField("text", StringType(), True),
-    StructField("sentiment", StringType(), True)
+    StructField("date",      StringType(), True),
+    StructField("user",      StringType(), True),
+    StructField("text",      StringType(), True),
+    StructField("sentiment", StringType(), True),
 ])
 
 # COMMAND ----------
@@ -102,22 +102,16 @@ tweet_schema = StructType([
 
 # TODO: Define append_flow function for bronze ingestion
 @dp.append_flow(target="tweets_bronze")
-def ingest_tweets():
+def ingest_raw_tweets():
     return (
-        spark.readStream.format("cloudFiles")
+        spark.readStream
+            .format("cloudFiles")
             .option("cloudFiles.format", "json")
-            .option("cloudFiles.schemaLocation",
-                    "/Volumes/workspace/default/checkpoints/bronze_schema")
+            .option("cloudFiles.schemaLocation", "/Volumes/workspace/default/checkpoints/")
             .schema(tweet_schema)
             .load("s3://dsas-datasets/tweets/")
-            .select(
-                col("date"),
-                col("user"),
-                col("text"),
-                col("sentiment"),
-                col("_metadata.file_path").alias("source_file"),
-                current_timestamp().alias("processing_time")
-            )
+            .withColumn("source_file",      col("_metadata.file_path"))
+            .withColumn("processing_time",  current_timestamp())
     )
 
 # COMMAND ----------
