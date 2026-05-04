@@ -137,6 +137,8 @@ sentiment_udf = mlflow.pyfunc.spark_udf(
 def transform_to_gold():
     return (
         dp.read_stream("tweets_silver")
+            # we Force 8 partitions so 8 executors run inference in parallel   
+            .repartition(8)
             # Apply distributed ML inference — model runs on each executor partition
             .withColumn("_prediction", sentiment_udf(col("cleaned_text")))
  
