@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "5"
+# ///
 # MAGIC %md
 # MAGIC # Sentiment Model Performance Analysis
 # MAGIC
@@ -30,7 +34,17 @@
 # - delta.tables.DeltaTable
 # - matplotlib.pyplot
 # - sklearn.metrics (confusion_matrix, classification_report, ConfusionMatrixDisplay)
-
+import pandas as pd
+import mlflow
+from mlflow import MlflowClient
+import matplotlib.pyplot as plt
+from sklearn.metrics import (
+    confusion_matrix,
+    classification_report,
+    ConfusionMatrixDisplay,
+)
+from delta.tables import DeltaTable
+from pyspark.sql.functions import col
 
 # COMMAND ----------
 
@@ -45,7 +59,16 @@
 # COMMAND ----------
 
 # TODO: Load gold table
-
+gold_spark_df = (
+    spark.read.format("delta").table("workspace.default.tweets_gold")
+    .filter(
+        col("sentiment_id").isNotNull() &
+        col("predicted_sentiment_id").isNotNull()
+    )
+)
+ 
+print(f"Loaded {gold_spark_df.count():,} rows from tweets_gold")
+display(gold_spark_df.select("sentiment_id", "predicted_sentiment_id").limit(10))
 
 # COMMAND ----------
 
@@ -65,6 +88,25 @@
 
 # TODO: Generate classification report
 
+gold_pdf = gold_spark_df.select(
+    "sentiment_id",
+    "predicted_sentiment_id"
+).toPandas()
+ 
+y_true = gold_pdf["sentiment_id"]
+y_pred = gold_pdf["predicted_sentiment_id"]
+ 
+target_names = ["Negative", "Positive"]
+ 
+report = classification_report(
+    y_true,
+    y_pred,
+    target_names=target_names,
+    output_dict=True,
+)
+ 
+print(classification_report(y_true, y_pred, target_names=target_names))
+ 
 
 # COMMAND ----------
 
@@ -85,7 +127,24 @@
 # COMMAND ----------
 
 # TODO: Create and display confusion matrix
+# Generate confusion matrix
+cm = confusion_matrix(y_true, y_pred)
+ 
 
+disp = ConfusionMatrixDisplay(
+    confusion_matrix=cm,
+    display_labels=target_names,
+)
+ 
+fig, ax = plt.subplots(figsize=(6, 5))
+disp.plot(ax=ax, cmap="Blues", colorbar=False)
+ax.set_title("Confusion Matrix - DistilBERT Sentiment Model", fontsize=13)
+plt.tight_layout()
+plt.show()
+ 
+cm_path = "/tmp/confusion_matrix.png"
+fig.savefig(cm_path, dpi=150)
+print(f"Confusion matrix saved to {cm_path}")
 
 # COMMAND ----------
 
@@ -110,7 +169,22 @@
 # COMMAND ----------
 
 # TODO: Log metrics and artifacts to MLflow
+mlflow.set_registry_uri("databricks-uc")
 
+silver_history = spark.sql(
+    "DESCRIBE HISTORY workspace.default.tweets_silver LIMIT 1"
+).collect()
+silver_delta_version = silver_history[0]["version"]
+
+with mlflow.start_run(run_name="distilbert_sentiment_evaluation") as run:
+    mlflow.log_metric("accuracy", report["accuracy"])
+    mlflow.log_param("model_name",           "workspace.default.tweet_sentiment_model")
+    mlflow.log_param("model_version",        1)
+    mlflow.log_param("silver_delta_version", silver_delta_version)
+    mlflow.log_artifact(cm_path, artifact_path="confusion_matrix")
+    run_id = run.info.run_id
+    print(f"✅ Run logged: {run_id}")
+    print(f"   Accuracy: {report['accuracy']:.4f}")
 
 # COMMAND ----------
 
